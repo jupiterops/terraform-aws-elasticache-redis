@@ -1,4 +1,3 @@
-# Define composite variables for resources
 module "label" {
   source     = "git::https://github.com/cloudposse/terraform-null-label.git?ref=tags/0.14.1"
   enabled    = var.enabled
@@ -14,7 +13,7 @@ module "label" {
 # Security Group Resources
 #
 resource "aws_security_group" "default" {
-  count  = var.enabled == "true" ? 1 : 0
+  count  = var.enabled ? 1 : 0
   vpc_id = var.vpc_id
   name   = module.label.id
 
@@ -40,23 +39,19 @@ locals {
 }
 
 resource "aws_elasticache_subnet_group" "default" {
-  count      = var.enabled == "true" && var.elasticache_subnet_group_name == "" && length(var.subnets) > 0 ? 1 : 0
+  count      = var.enabled && var.elasticache_subnet_group_name == "" && length(var.subnets) > 0 ? 1 : 0
   name       = module.label.id
   subnet_ids = var.subnets
 }
 
 resource "aws_elasticache_parameter_group" "default" {
-  count  = var.enabled == "true" ? 1 : 0
+  count  = var.enabled ? 1 : 0
   name   = module.label.id
   family = var.family
+
   dynamic "parameter" {
     for_each = var.parameter
     content {
-      # TF-UPGRADE-TODO: The automatic upgrade tool can't predict
-      # which keys might be set in maps assigned here, so it has
-      # produced a comprehensive set here. Consider simplifying
-      # this after confirming which keys can be set in practice.
-
       name  = parameter.value.name
       value = parameter.value.value
     }
@@ -64,18 +59,18 @@ resource "aws_elasticache_parameter_group" "default" {
 }
 
 resource "aws_elasticache_replication_group" "default" {
-  count = var.enabled == "true" ? 1 : 0
+  count = var.enabled ? 1 : 0
 
   replication_group_id          = var.replication_group_id == "" ? module.label.id : var.replication_group_id
   replication_group_description = module.label.id
   node_type                     = var.instance_type
   number_cache_clusters         = var.cluster_size
   port                          = var.port
-  parameter_group_name          = aws_elasticache_parameter_group.default[0].name
-  availability_zones            = var.availability_zones
+  parameter_group_name          = join("", aws_elasticache_parameter_group.default.*.name)
+  availability_zones            = slice(var.availability_zones, 0, var.cluster_size)
   automatic_failover_enabled    = var.automatic_failover
   subnet_group_name             = local.elasticache_subnet_group_name
-  security_group_ids            = [aws_security_group.default[0].id]
+  security_group_ids            = [join("", aws_security_group.default.*.id)]
   maintenance_window            = var.maintenance_window
   notification_topic_arn        = var.notification_topic_arn
   engine_version                = var.engine_version
@@ -90,7 +85,7 @@ resource "aws_elasticache_replication_group" "default" {
 # CloudWatch Resources
 #
 resource "aws_cloudwatch_metric_alarm" "cache_cpu" {
-  count               = var.enabled == "true" ? 1 : 0
+  count               = var.enabled ? 1 : 0
   alarm_name          = "${module.label.id}-cpu-utilization"
   alarm_description   = "Redis cluster CPU utilization"
   comparison_operator = "GreaterThanThreshold"
@@ -112,7 +107,7 @@ resource "aws_cloudwatch_metric_alarm" "cache_cpu" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "cache_memory" {
-  count               = var.enabled == "true" ? 1 : 0
+  count               = var.enabled ? 1 : 0
   alarm_name          = "${module.label.id}-freeable-memory"
   alarm_description   = "Redis cluster freeable memory"
   comparison_operator = "LessThanThreshold"
@@ -134,13 +129,11 @@ resource "aws_cloudwatch_metric_alarm" "cache_memory" {
 }
 
 module "dns" {
-  source    = "git::https://github.com/rverma-nikiai/terraform-aws-route53-cluster-hostname.git?ref=master"
-  enabled   = var.enabled == "true" && length(var.zone_id) > 0 ? "true" : "false"
-  namespace = var.namespace
-  name      = var.name
-  stage     = var.stage
-  ttl       = 60
-  zone_id   = var.zone_id
-  records   = aws_elasticache_replication_group.default.*.primary_endpoint_address
+  source  = "git::https://github.com/cloudposse/terraform-aws-route53-cluster-hostname.git?ref=tags/0.3.0"
+  enabled = var.enabled && var.zone_id != "" ? true : false
+  name    = var.name
+  ttl     = 60
+  zone_id = var.zone_id
+  records = [join("", aws_elasticache_replication_group.default.*.primary_endpoint_address)]
 }
 

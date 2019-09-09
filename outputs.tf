@@ -18,8 +18,8 @@ output "host" {
     module.dns.hostname,
     join(
       "",
-      aws_elasticache_replication_group.default.*.primary_endpoint_address,
-    ),
+      aws_elasticache_replication_group.default.*.primary_endpoint_address
+    )
   )
   description = "Redis host"
 }
