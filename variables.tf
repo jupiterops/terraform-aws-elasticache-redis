@@ -192,3 +192,8 @@ variable "snapshot_retention_limit" {
   default     = 0
 }
 
+variable "snapshot_window" {
+  type        = string
+  description = "The daily time range (in UTC) during which ElastiCache will begin taking a daily snapshot of your cache cluster."
+  default     = "22:30-07:30"
+}
