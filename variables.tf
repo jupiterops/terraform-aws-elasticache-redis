@@ -186,3 +186,8 @@ variable "replication_group_id" {
   default     = ""
 }
 
+variable "snapshot_retention_limit" {
+  type        = number
+  description = "The number of days for which ElastiCache will retain automatic cache cluster snapshots before deleting them."
+  default     = 0
+}
