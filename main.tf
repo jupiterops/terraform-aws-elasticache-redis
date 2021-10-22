@@ -139,7 +139,7 @@ module "dns" {
   records = [join("", aws_elasticache_replication_group.default.*.primary_endpoint_address)]
 }
   
-module "replica_dns" {
+module "reader_dns" {
   source  = "git::https://github.com/cloudposse/terraform-aws-route53-cluster-hostname.git?ref=tags/0.3.0"
   enabled = var.enabled && var.zone_id != "" && length(var.cluster_size) > 1 ? true : false
   name    = "${var.name}-reader"
